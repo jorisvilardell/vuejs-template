@@ -1,4 +1,6 @@
+mod queue_consumer;
 mod storage;
+mod stomp;
 mod world;
 
 use axum::{
@@ -111,6 +113,29 @@ fn internal<E: std::fmt::Display>(e: E) -> (StatusCode, Json<ErrorResponse>) {
     )
 }
 
+async fn run_http(storage: Arc<Storage>) -> anyhow::Result<()> {
+    let app = Router::new()
+        .route("/healthz", get(health))
+        .route("/generate", post(handle_generate))
+        .with_state(AppState { storage })
+        .layer(CorsLayer::permissive());
+
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3001);
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    info!(?addr, "worker http listening");
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+        })
+        .await?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -123,24 +148,11 @@ async fn main() -> anyhow::Result<()> {
     let storage = Arc::new(Storage::from_env().await?);
     info!(bucket = %storage.bucket, "storage ready");
 
-    let app = Router::new()
-        .route("/healthz", get(health))
-        .route("/generate", post(handle_generate))
-        .with_state(AppState { storage })
-        .layer(CorsLayer::permissive());
+    let mode = std::env::var("MODE").unwrap_or_else(|_| "http".into()).to_lowercase();
+    info!(mode, "worker mode");
 
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(3001);
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    info!(?addr, "worker listening");
-
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
-    Ok(())
+    match mode.as_str() {
+        "queue" => queue_consumer::run_one((*storage).clone()).await,
+        "http" | _ => run_http(storage).await,
+    }
 }
