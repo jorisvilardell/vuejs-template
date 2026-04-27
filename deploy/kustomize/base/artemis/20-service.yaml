@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: artemis
+  namespace: broker
+  labels:
+    app.kubernetes.io/name: artemis
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: artemis
+  ports:
+    - name: stomp
+      port: 61613
+      targetPort: stomp
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+    - name: core
+      port: 61616
+      targetPort: core
+    - name: console
+      port: 8161
+      targetPort: console
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: artemis-headless
+  namespace: broker
+  labels:
+    app.kubernetes.io/name: artemis
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: artemis
+  ports:
+    - name: stomp
+      port: 61613
+      targetPort: stomp

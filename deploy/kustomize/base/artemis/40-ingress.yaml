@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: artemis-console
+  namespace: broker
+  labels:
+    app.kubernetes.io/name: artemis
+spec:
+  rules:
+    - host: artemis.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: artemis
+                port:
+                  number: 8161

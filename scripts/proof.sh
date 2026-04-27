@@ -34,16 +34,16 @@ OUT="${OUT:-proof.txt}"
   echo "### exec id (preuve uid runtime)"
   kubectl -n "$NS" exec deploy/vuejs-template -- id
   echo
-  echo "### probe HTTP via port-forward"
-  kubectl -n "$NS" port-forward svc/vuejs-template 18080:80 >/tmp/pf.log 2>&1 &
+  echo "### probe HTTP via port-forward (svc → 28080 local)"
+  kubectl -n "$NS" port-forward svc/vuejs-template 28080:80 >/tmp/pf.log 2>&1 &
   PF=$!
   sleep 2
-  curl -sS -o /dev/null -w "HTTP %{http_code} svc/healthz\n" http://127.0.0.1:18080/healthz || true
-  curl -sS -o /dev/null -w "HTTP %{http_code} svc/\n" http://127.0.0.1:18080/ || true
+  curl -sS -o /dev/null -w "HTTP %{http_code} svc/healthz\n" http://127.0.0.1:28080/healthz || true
+  curl -sS -o /dev/null -w "HTTP %{http_code} svc/\n" http://127.0.0.1:28080/ || true
   kill $PF 2>/dev/null || true
   echo
-  echo "### probe HTTP via ingress (host vuejs.localhost)"
-  curl -sS -o /dev/null -w "HTTP %{http_code} ingress/healthz\n" -H 'Host: vuejs.localhost' http://127.0.0.1:8080/healthz || true
+  echo "### probe HTTP via ingress k3d-LB (vuejs.localhost:18080)"
+  curl -sS -o /dev/null -w "HTTP %{http_code} ingress/healthz\n" -H 'Host: vuejs.localhost' http://127.0.0.1:18080/healthz || true
 } | tee "$OUT"
 
 echo

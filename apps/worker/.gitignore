@@ -1,0 +1,15 @@
+# Cargo build output
+target/
+
+# Coverage
+coverage/
+*.profraw
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Env
+.env
+.env.local

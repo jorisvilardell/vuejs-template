@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: artemis
+  namespace: broker
+  labels:
+    app.kubernetes.io/name: artemis
+    app.kubernetes.io/component: broker
+spec:
+  serviceName: artemis-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: artemis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: artemis
+        app.kubernetes.io/component: broker
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: artemis
+          image: apache/activemq-artemis:2.40.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: core,    containerPort: 61616 }
+            - { name: stomp,   containerPort: 61613 }
+            - { name: amqp,    containerPort: 5672 }
+            - { name: console, containerPort: 8161 }
+          env:
+            - name: ARTEMIS_USER
+              valueFrom: { secretKeyRef: { name: artemis-credentials, key: ARTEMIS_USER } }
+            - name: ARTEMIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: artemis-credentials, key: ARTEMIS_PASSWORD } }
+            - name: ANONYMOUS_LOGIN
+              value: "false"
+            - name: EXTRA_ARGS
+              value: "--http-host 0.0.0.0 --relax-jolokia"
+          readinessProbe:
+            tcpSocket: { port: stomp }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: stomp }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits:   { cpu: 1500m, memory: 1500Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/artemis-instance }
+  volumeClaimTemplates:
+    - metadata: { name: data, labels: { app.kubernetes.io/name: artemis } }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 5Gi } }
