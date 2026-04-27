@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vuejs-template
+  namespace: vuejs
+  labels:
+    app.kubernetes.io/name: vuejs-template
+spec:
+  rules:
+    - host: vuejs.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vuejs-template
+                port:
+                  number: 80
