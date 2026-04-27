@@ -1,0 +1,120 @@
+===== 2026-04-27T08:18:50+02:00 =====
+
+### kubectl get nodes -o wide
+NAME                 STATUS   ROLES                  AGE     VERSION        INTERNAL-IP   EXTERNAL-IP   OS-IMAGE           KERNEL-VERSION      CONTAINER-RUNTIME
+k3d-vuejs-agent-0    Ready    <none>                 7m51s   v1.31.4+k3s1   172.20.0.3    <none>        K3s v1.31.4+k3s1   6.17.0-20-generic   containerd://1.7.23-k3s2
+k3d-vuejs-agent-1    Ready    <none>                 7m51s   v1.31.4+k3s1   172.20.0.4    <none>        K3s v1.31.4+k3s1   6.17.0-20-generic   containerd://1.7.23-k3s2
+k3d-vuejs-agent-2    Ready    <none>                 7m51s   v1.31.4+k3s1   172.20.0.5    <none>        K3s v1.31.4+k3s1   6.17.0-20-generic   containerd://1.7.23-k3s2
+k3d-vuejs-server-0   Ready    control-plane,master   7m53s   v1.31.4+k3s1   172.20.0.2    <none>        K3s v1.31.4+k3s1   6.17.0-20-generic   containerd://1.7.23-k3s2
+
+### kubectl -n vuejs get all
+NAME                                  READY   STATUS    RESTARTS   AGE
+pod/vuejs-template-65df4449bc-7fq4h   1/1     Running   0          102s
+pod/vuejs-template-65df4449bc-bw5ps   1/1     Running   0          102s
+pod/vuejs-template-65df4449bc-rffmd   1/1     Running   0          102s
+
+NAME                     TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+service/vuejs-template   ClusterIP   10.43.51.4   <none>        80/TCP    102s
+
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/vuejs-template   3/3     3            3           102s
+
+NAME                                        DESIRED   CURRENT   READY   AGE
+replicaset.apps/vuejs-template-65df4449bc   3         3         3       102s
+
+NAME                                                 REFERENCE                   TARGETS                        MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/vuejs-template   Deployment/vuejs-template   cpu: 2%/70%, memory: 15%/80%   3         10        3          102s
+
+### pods -o wide (répartition noeuds)
+NAME                              READY   STATUS    RESTARTS   AGE    IP          NODE                NOMINATED NODE   READINESS GATES
+vuejs-template-65df4449bc-7fq4h   1/1     Running   0          102s   10.42.0.5   k3d-vuejs-agent-0   <none>           <none>
+vuejs-template-65df4449bc-bw5ps   1/1     Running   0          102s   10.42.3.5   k3d-vuejs-agent-1   <none>           <none>
+vuejs-template-65df4449bc-rffmd   1/1     Running   0          102s   10.42.1.5   k3d-vuejs-agent-2   <none>           <none>
+
+### hpa
+NAME             REFERENCE                   TARGETS                        MINPODS   MAXPODS   REPLICAS   AGE
+vuejs-template   Deployment/vuejs-template   cpu: 2%/70%, memory: 15%/80%   3         10        3          102s
+
+### pdb
+NAME             MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+vuejs-template   2               N/A               1                     102s
+
+### ingress
+NAME             CLASS     HOSTS             ADDRESS                                       PORTS   AGE
+vuejs-template   traefik   vuejs.localhost   172.20.0.2,172.20.0.3,172.20.0.4,172.20.0.5   80      103s
+
+### describe deploy (head)
+Name:                   vuejs-template
+Namespace:              vuejs
+CreationTimestamp:      Mon, 27 Apr 2026 08:17:08 +0200
+Labels:                 app.kubernetes.io/component=web
+                        app.kubernetes.io/name=vuejs-template
+Annotations:            deployment.kubernetes.io/revision: 1
+Selector:               app.kubernetes.io/name=vuejs-template
+Replicas:               3 desired | 3 updated | 3 total | 3 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  0 max unavailable, 1 max surge
+Pod Template:
+  Labels:  app.kubernetes.io/component=web
+           app.kubernetes.io/name=vuejs-template
+  Containers:
+   web:
+    Image:      ghcr.io/zuhowks/vuejs-template:latest
+    Port:       8080/TCP
+    Host Port:  0/TCP
+    Limits:
+      cpu:     250m
+      memory:  128Mi
+    Requests:
+      cpu:        50m
+      memory:     64Mi
+    Liveness:     http-get http://:http/healthz delay=10s timeout=1s period=10s #success=1 #failure=3
+    Readiness:    http-get http://:http/healthz delay=2s timeout=1s period=5s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /tmp from tmp (rw)
+      /var/cache/nginx from nginx-cache (rw)
+      /var/run from nginx-run (rw)
+  Volumes:
+   nginx-cache:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+   nginx-run:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+   tmp:
+    Type:                       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:                     
+    SizeLimit:                  <unset>
+  Topology Spread Constraints:  kubernetes.io/hostname:ScheduleAnyway when max skew 1 is exceeded for selector app.kubernetes.io/name=vuejs-template
+  Node-Selectors:               <none>
+  Tolerations:                  <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    NewReplicaSetAvailable
+OldReplicaSets:  <none>
+NewReplicaSet:   vuejs-template-65df4449bc (3/3 replicas created)
+Events:
+  Type    Reason             Age   From                   Message
+  ----    ------             ----  ----                   -------
+  Normal  ScalingReplicaSet  103s  deployment-controller  Scaled up replica set vuejs-template-65df4449bc to 3
+
+### securityContext (preuve non-root)
+vuejs-template-65df4449bc-7fq4h  user=101  nonRoot=true  roFs=true  drop=["ALL"]
+vuejs-template-65df4449bc-bw5ps  user=101  nonRoot=true  roFs=true  drop=["ALL"]
+vuejs-template-65df4449bc-rffmd  user=101  nonRoot=true  roFs=true  drop=["ALL"]
+
+### exec id (preuve uid runtime)
+uid=101(nginx) gid=101(nginx) groups=101(nginx)
+
+### probe HTTP via port-forward
+HTTP 200 svc/healthz
+HTTP 200 svc/
+
+### probe HTTP via ingress (host vuejs.localhost)
+HTTP 200 ingress/healthz
