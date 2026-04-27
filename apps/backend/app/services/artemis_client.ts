@@ -30,7 +30,7 @@ function readConfig(): Config {
   return cfg
 }
 
-function connectOpts(cfg: Config): stompit.ConnectOptions {
+function connectOpts(cfg: Config): any {
   return {
     host: cfg.host,
     port: cfg.port,
@@ -40,7 +40,7 @@ function connectOpts(cfg: Config): stompit.ConnectOptions {
       passcode: cfg.pass,
       'accept-version': '1.2',
       'heart-beat': '10000,10000',
-    } as any,
+    },
   }
 }
 
