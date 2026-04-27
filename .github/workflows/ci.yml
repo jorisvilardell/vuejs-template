@@ -86,11 +86,6 @@ jobs:
         run: |
           curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
           sudo mv kustomize /usr/local/bin/
-      - name: Validate raw manifests (legacy)
-        run: |
-          if [ -d k8s ]; then
-            kubeconform -strict -summary -ignore-missing-schemas k8s/
-          fi
       - name: Validate kustomize bases
         run: |
           for dir in deploy/kustomize/base/*/; do

@@ -74,13 +74,11 @@ spec:
   scalingStrategy:
     strategy: default
   triggers:
-    - type: activemq
+    - type: metrics-api
       metadata:
-        managementEndpoint: artemis.broker.svc.cluster.local:8161
-        destinationName: world-gen
-        brokerName: "0.0.0.0"
-        brokerAddress: world-gen
-        targetQueueSize: "1"
-        restAPITemplate: "http://{{.ManagementEndpoint}}/console/jolokia/read/org.apache.activemq.artemis:broker=\"{{.BrokerName}}\",component=addresses,address=\"{{.BrokerAddress}}\",subcomponent=queues,routing-type=\"anycast\",queue=\"{{.DestinationName}}\"/MessageCount"
+        url: 'http://artemis.broker.svc.cluster.local:8161/console/jolokia/read/org.apache.activemq.artemis:broker=%220.0.0.0%22,component=addresses,address=%22world-gen%22,subcomponent=queues,routing-type=%22anycast%22,queue=%22world-gen%22/MessageCount'
+        valueLocation: 'value'
+        targetValue: '1'
+        authMode: 'basic'
       authenticationRef:
         name: artemis-auth
