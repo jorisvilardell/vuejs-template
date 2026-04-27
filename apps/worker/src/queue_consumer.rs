@@ -52,7 +52,7 @@ pub async fn run_one(storage: Storage) -> Result<()> {
     let mut client = StompClient::connect(&host, port, &user, &pass).await?;
     info!(host, port, queue_in = %queue_in, "stomp connected");
     client
-        .subscribe("worker-1", &format!("/queue/{queue_in}"), "client-individual")
+        .subscribe("worker-1", &queue_in, "client-individual")
         .await?;
 
     let frame = client.read_message(Duration::from_secs(wait_secs)).await?;
@@ -106,7 +106,7 @@ pub async fn run_one(storage: Storage) -> Result<()> {
     };
     let payload = serde_json::to_vec(&done)?;
     client
-        .send(&format!("/queue/{queue_out}"), "application/json", &payload)
+        .send(&queue_out, "application/json", &payload)
         .await?;
 
     if !ack_id.is_empty() {
