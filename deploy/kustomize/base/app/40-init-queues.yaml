@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: artemis-init-queues
+  namespace: world
+  labels:
+    app.kubernetes.io/name: world-init
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: world-init
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: init
+          image: curlimages/curl:8.10.1
+          env:
+            - name: ARTEMIS_USER
+              valueFrom: { secretKeyRef: { name: world-secrets, key: ARTEMIS_USER } }
+            - name: ARTEMIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: world-secrets, key: ARTEMIS_PASSWORD } }
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              MGMT="http://artemis.broker.svc.cluster.local:8161/console/jolokia"
+              AUTH="$ARTEMIS_USER:$ARTEMIS_PASSWORD"
+              for i in 1 2 3 4 5 6 7 8 9 10; do
+                if curl -sS -u "$AUTH" "$MGMT/version" -o /dev/null; then
+                  echo "artemis up"; break
+                fi
+                echo "wait artemis... $i"; sleep 3
+              done
+              for QUEUE in world-gen world-done; do
+                echo "create queue $QUEUE"
+                curl -sS -u "$AUTH" -H "Content-Type: application/json" -H "Origin: http://localhost" \
+                  -d "{\"type\":\"exec\",\"mbean\":\"org.apache.activemq.artemis:broker=\\\"0.0.0.0\\\"\",\"operation\":\"createQueue(java.lang.String,java.lang.String,java.lang.String,java.lang.String,boolean,int,boolean,boolean)\",\"arguments\":[\"$QUEUE\",\"ANYCAST\",\"$QUEUE\",null,true,-1,false,true]}" \
+                  "$MGMT" || true
+              done
+              echo "done"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }

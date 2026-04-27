@@ -10,33 +10,67 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_PREFIX: ${{ github.repository }}
 
 jobs:
-  build-test:
-    name: build & test
+  frontend-build:
+    name: frontend build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/frontend
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload dist artifact
-        uses: actions/upload-artifact@v4
+          cache-dependency-path: apps/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: frontend-dist
+          path: apps/frontend/dist/
           retention-days: 7
+
+  backend-build:
+    name: backend build & typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/backend/package-lock.json
+      - run: npm ci
+      - name: APP_KEY for build
+        run: cp .env.example .env && echo "APP_KEY=$(node -e 'console.log(require(\"node:crypto\").randomBytes(32).toString(\"hex\"))')" >> .env
+      - run: npm run typecheck
+      - run: npm run build
+
+  worker-build:
+    name: worker build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/worker
+      - run: cargo fmt --check
+        continue-on-error: true
+      - run: cargo clippy --release --all-targets -- -D warnings
+        continue-on-error: true
+      - run: cargo build --release --locked
+      - run: cargo test --release
 
   manifests-validate:
     name: validate k8s manifests
@@ -48,25 +82,50 @@ jobs:
           curl -sSL -o /tmp/kc.tgz \
             https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz
           sudo tar -xzf /tmp/kc.tgz -C /usr/local/bin kubeconform
-      - name: Validate
-        run: kubeconform -strict -summary -ignore-missing-schemas k8s/
+      - name: Setup kustomize
+        run: |
+          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+      - name: Validate raw manifests (legacy)
+        run: |
+          if [ -d k8s ]; then
+            kubeconform -strict -summary -ignore-missing-schemas k8s/
+          fi
+      - name: Validate kustomize bases
+        run: |
+          for dir in deploy/kustomize/base/*/; do
+            echo "=== $dir ==="
+            kustomize build "$dir" | kubeconform -strict -summary -ignore-missing-schemas \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          done
 
-  image:
-    name: build & push image
-    needs: [build-test, manifests-validate]
+  images:
+    name: build & push (${{ matrix.app }})
+    needs: [frontend-build, backend-build, worker-build, manifests-validate]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: frontend
+            context: apps/frontend
+            platforms: linux/amd64,linux/arm64
+          - app: backend
+            context: apps/backend
+            platforms: linux/amd64,linux/arm64
+          - app: worker
+            context: apps/worker
+            platforms: linux/amd64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
         if: github.event_name != 'pull_request'
@@ -80,7 +139,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.app }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -92,12 +151,12 @@ jobs:
       - name: Build & push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          platforms: linux/amd64,linux/arm64
+          context: ${{ matrix.context }}
+          platforms: ${{ matrix.platforms }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
           provenance: true
           sbom: true

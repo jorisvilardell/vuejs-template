@@ -1,0 +1,10 @@
+node_modules/
+build/
+tmp/
+.git
+.idea
+.vscode
+.env
+.env.local
+*.md
+coverage/

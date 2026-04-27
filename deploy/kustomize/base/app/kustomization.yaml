@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: world
+resources:
+  - 00-namespace.yaml
+  - 05-secrets.yaml
+  - 06-config.yaml
+  - 10-backend.yaml
+  - 20-frontend.yaml
+  - 30-scaledjob.yaml
+  - 40-init-queues.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: world-forge

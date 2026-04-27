@@ -1,0 +1,86 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: artemis-auth
+  namespace: world
+spec:
+  secretTargetRef:
+    - parameter: username
+      name: world-secrets
+      key: ARTEMIS_USER
+    - parameter: password
+      name: world-secrets
+      key: ARTEMIS_PASSWORD
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: world-worker
+  namespace: world
+  labels:
+    app.kubernetes.io/name: world-worker
+    app.kubernetes.io/component: worker
+spec:
+  jobTargetRef:
+    parallelism: 1
+    completions: 1
+    backoffLimit: 1
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: world-worker
+          app.kubernetes.io/component: worker
+      spec:
+        restartPolicy: Never
+        automountServiceAccountToken: false
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          fsGroup: 65532
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+          - name: worker
+            image: ghcr.io/zuhowks/vuejs-template-worker:latest
+            imagePullPolicy: IfNotPresent
+            env:
+              - { name: MODE, value: queue }
+              - { name: RUST_LOG, value: "info,aws=warn" }
+              - { name: CONSUMER_WAIT_SECS, value: "30" }
+              - name: ARTEMIS_USER
+                valueFrom: { secretKeyRef: { name: world-secrets, key: ARTEMIS_USER } }
+              - name: ARTEMIS_PASSWORD
+                valueFrom: { secretKeyRef: { name: world-secrets, key: ARTEMIS_PASSWORD } }
+              - name: S3_ACCESS_KEY_ID
+                valueFrom: { secretKeyRef: { name: world-secrets, key: S3_ACCESS_KEY_ID } }
+              - name: S3_SECRET_ACCESS_KEY
+                valueFrom: { secretKeyRef: { name: world-secrets, key: S3_SECRET_ACCESS_KEY } }
+            envFrom:
+              - configMapRef: { name: world-config }
+            resources:
+              requests: { cpu: 100m, memory: 96Mi }
+              limits:   { cpu: 1000m, memory: 256Mi }
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              capabilities: { drop: [ALL] }
+  pollingInterval: 5
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  envSourceContainerName: worker
+  maxReplicaCount: 10
+  scalingStrategy:
+    strategy: default
+  triggers:
+    - type: activemq
+      metadata:
+        managementEndpoint: artemis.broker.svc.cluster.local:8161
+        destinationName: world-gen
+        brokerName: "0.0.0.0"
+        brokerAddress: world-gen
+        targetQueueSize: "1"
+        restAPITemplate: "http://{{.ManagementEndpoint}}/console/jolokia/read/org.apache.activemq.artemis:broker=\"{{.BrokerName}}\",component=addresses,address=\"{{.BrokerAddress}}\",subcomponent=queues,routing-type=\"anycast\",queue=\"{{.DestinationName}}\"/MessageCount"
+      authenticationRef:
+        name: artemis-auth

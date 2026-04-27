@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: world-config
+  namespace: world
+data:
+  ARTEMIS_HOST: artemis.broker.svc.cluster.local
+  ARTEMIS_PORT: "61613"
+  QUEUE_IN: world-gen
+  QUEUE_OUT: world-done
+  S3_ENDPOINT: http://rustfs.storage.svc.cluster.local:9000
+  S3_PUBLIC_ENDPOINT: http://rustfs.localhost:18080
+  S3_BUCKET: worlds
+  S3_REGION: us-east-1

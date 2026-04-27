@@ -71,12 +71,12 @@ async function startConsumer(cfg: Config): Promise<void> {
       ack: 'client-individual',
       'activemq.prefetchSize': '32',
     } as any,
-    (err, message) => {
+    (err: Error | null, message: any) => {
       if (err) {
         logger.error({ err }, 'subscribe error')
         return
       }
-      message.readString('utf-8', (rerr, body) => {
+      message.readString('utf-8', (rerr: Error | null, body: string | undefined) => {
         if (rerr) {
           logger.error({ err: rerr }, 'read message error')
           return
