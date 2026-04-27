@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+.gitlab-ci.yml
+.idea
+.vscode
+.claude
+k8s
+scripts
+*.md
+docker-compose.yml
