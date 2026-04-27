@@ -82,8 +82,8 @@ pub fn generate(opts: GenerateOptions) -> Result<GenerateResult> {
     let cy = (n as f64) / 2.0;
     let max_dist = ((cx * cx) + (cy * cy)).sqrt();
 
-    for y in 0..n {
-        for x in 0..n {
+    for (y, row) in tiles.iter_mut().enumerate() {
+        for (x, cell) in row.iter_mut().enumerate() {
             let mut amp = 1.0;
             let mut freq = base_freq;
             let mut sum = 0.0;
@@ -106,7 +106,7 @@ pub fn generate(opts: GenerateOptions) -> Result<GenerateResult> {
             h = h.clamp(0.0, 1.0);
 
             let biome = classify(h);
-            tiles[y][x] = biome.key();
+            *cell = biome.key();
             img.put_pixel(x as u32, y as u32, Rgba(biome.rgba()));
         }
     }

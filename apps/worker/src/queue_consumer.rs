@@ -77,7 +77,7 @@ pub async fn run_one(storage: Storage) -> Result<()> {
     });
 
     let opts = GenerateOptions {
-        seed: msg.seed.unwrap_or_else(|| rand::random()),
+        seed: msg.seed.unwrap_or_else(rand::random),
         size: msg.size.unwrap_or(128).clamp(32, 512),
         scale: msg.scale.unwrap_or(8).clamp(1, 16),
     };

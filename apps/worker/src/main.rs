@@ -66,7 +66,7 @@ async fn handle_generate(
     Query(q): Query<GenerateQuery>,
 ) -> Result<Json<WorldResponse>, (StatusCode, Json<ErrorResponse>)> {
     let opts = GenerateOptions {
-        seed: q.seed.unwrap_or_else(|| rand::random()),
+        seed: q.seed.unwrap_or_else(rand::random),
         size: q.size.unwrap_or(128).clamp(32, 512),
         scale: q.scale.unwrap_or(8).clamp(1, 16),
     };
@@ -153,6 +153,6 @@ async fn main() -> anyhow::Result<()> {
 
     match mode.as_str() {
         "queue" => queue_consumer::run_one((*storage).clone()).await,
-        "http" | _ => run_http(storage).await,
+        _ => run_http(storage).await,
     }
 }
