@@ -18,5 +18,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   HOST: Env.schema.string({ format: 'host' }),
   LOG_LEVEL: Env.schema.string(),
 
-  WORKER_URL: Env.schema.string({ format: 'url', tld: false, protocol: true }),
+  MODE: Env.schema.enum.optional(['local', 'queue'] as const),
+  WORKER_URL: Env.schema.string.optional({ format: 'url', tld: false, protocol: true }),
+
+  ARTEMIS_HOST: Env.schema.string.optional(),
+  ARTEMIS_PORT: Env.schema.number.optional(),
+  ARTEMIS_USER: Env.schema.string.optional(),
+  ARTEMIS_PASSWORD: Env.schema.string.optional(),
+  QUEUE_IN: Env.schema.string.optional(),
+  QUEUE_OUT: Env.schema.string.optional(),
 })

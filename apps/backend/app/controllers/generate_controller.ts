@@ -3,6 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import logger from '@adonisjs/core/services/logger'
 import env from '#start/env'
 import worldBus, { type WorldPayload } from '#services/world_bus'
+import { publishGenerate } from '#services/artemis_client'
 
 const FUNNY_PHASES = [
   'Soulèvement des montagnes',
@@ -22,9 +23,27 @@ export default class GenerateController {
 
     const jobId = randomUUID()
     const startedAt = Date.now()
+    const mode = (env.get('MODE') || 'local').toLowerCase()
 
     worldBus.publish({ type: 'world.started', jobId, at: startedAt })
 
+    if (mode === 'queue') {
+      try {
+        await publishGenerate({ jobId, ...body })
+      } catch (err) {
+        logger.error({ err, jobId }, 'publish failed')
+        worldBus.publish({
+          type: 'world.error',
+          jobId,
+          at: Date.now(),
+          error: err instanceof Error ? err.message : String(err),
+        })
+        return response.internalServerError({ jobId, error: 'queue publish failed' })
+      }
+      return response.accepted({ jobId, startedAt, mode })
+    }
+
+    // local mode: HTTP fetch worker directly
     const url = new URL('/generate', env.get('WORKER_URL'))
     if (body.seed !== undefined) url.searchParams.set('seed', String(body.seed))
     if (body.size !== undefined) url.searchParams.set('size', String(body.size))
@@ -55,6 +74,6 @@ export default class GenerateController {
       }
     })
 
-    return response.accepted({ jobId, startedAt })
+    return response.accepted({ jobId, startedAt, mode })
   }
 }

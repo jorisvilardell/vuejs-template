@@ -51,7 +51,8 @@
   "dependencies": {
     "@adonisjs/core": "^6.18.0",
     "@adonisjs/cors": "^2.2.1",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "stompit": "^1.0.0"
   },
   "hotHook": {
     "boundaries": [
